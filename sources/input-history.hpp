@@ -49,8 +49,18 @@ private:
 
 struct KeyBundle
 {
+    /** are there keys or not*/
     bool m_empty = true;
+
+    /**
+    * Array holding the keys
+    */
     uint16_t m_keys[MAX_SIMULTANEOUS_KEYS] = {0};
+
+    /**
+    * Number of times pressed
+    */
+    uint16_t m_key_pressed_n_times = 1;
 
     void merge(KeyBundle other);
 
@@ -116,6 +126,8 @@ struct InputHistorySource
     uint32_t m_update_interval = 1, m_counter = 0;
     int16_t m_icon_v_space = 0, m_icon_h_space = 0;
 
+    bool m_keys_released = false;
+
     uint8_t m_bool_values = 0x0000;
     IconDirection m_history_direction = DIR_DOWN;
 
@@ -161,9 +173,13 @@ struct InputHistorySource
 
     void add_to_history(KeyBundle b);
 
+    void update_latest_history(KeyBundle b);
+
     void clear_history(void);
 
     void handle_text_history(void);
+
+    void get_current_keys(bool renderText);
 
     void handle_icon_history(gs_effect_t* effect);
 

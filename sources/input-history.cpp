@@ -63,14 +63,19 @@ void InputHistorySource::add_to_history(KeyBundle b)
     m_history[0] = b;
 }
 
+void InputHistorySource::update_latest_history(KeyBundle b)
+{
+    m_history[0] = b;
+}
+
 void InputHistorySource::clear_history(void)
 {
-    util_clear_pressed();
     for (int i = 0; i < MAX_HISTORY_SIZE; i++) {
         m_history[i] = {};
     }
 
     m_prev_keys = {};
+    m_prev_keys.m_key_pressed_n_times = 1;
     m_current_keys = {};
 
     obs_data_set_string(m_settings, "text", "");
@@ -78,6 +83,9 @@ void InputHistorySource::clear_history(void)
     obs_source_update(m_source, m_settings);
 }
 
+/**
+* Add pressed keys to the bundle
+*/
 KeyBundle InputHistorySource::check_keys(void)
 {
     KeyBundle temp = KeyBundle();
@@ -85,8 +93,9 @@ KeyBundle InputHistorySource::check_keys(void)
 
         for (int i = 0; i < MAX_SIMULTANEOUS_KEYS; i++) {
             temp.m_keys[i] = pressed_keys[i];
-            if (pressed_keys[i] > 0)
-                temp.m_empty = false;
+	    if (pressed_keys[i] > 0) {
+		temp.m_empty = false;
+	    } 
         }
     }
 
@@ -217,37 +226,42 @@ inline void InputHistorySource::Tick(float seconds)
     if (!m_source || !obs_source_showing(m_source))
         return;
 
-    if (GET_MASK(MASK_AUTO_CLEAR)) {
-        m_clear_timer += seconds;
-        if (m_clear_timer >= m_clear_interval) {
-            m_clear_timer = 0.f;
-            clear_history();
-        }
-    }
-
+    // if we have waited longer than the interval
     if (m_counter >= m_update_interval) {
         m_counter = 0;
-        if (!m_current_keys.m_empty) {
+
+	// if we have keys pressed
+	if (!m_current_keys.m_empty) {
+
+	    // if text mode OR no idea but something like if we have textures for the current keys
             if (GET_MASK(MASK_TEXT_MODE) || m_key_icons && m_key_icons->has_texture_for_bundle(&m_current_keys)) {
+
+		// if repeat keys is enabled OR current keys do not match previous keys
                 if (GET_MASK(MASK_REPEAT_KEYS) || !m_current_keys.compare(&m_prev_keys)) {
+
+		    // if we want to capture mouse clicks
                     if (!m_current_keys.is_only_mouse() || GET_MASK(MASK_INCLUDE_MOUSE)) {
-                        add_to_history(m_current_keys);
+			add_to_history(m_current_keys);
                         m_clear_timer = 0.f;
                     }
 
                     m_prev_keys = m_current_keys;
-
-                    if (GET_MASK(MASK_TEXT_MODE)) {
-                        handle_text_history();
-                    }
-
                     m_current_keys = {};
-                }
+		}
             }
-        }
+	}
+	get_current_keys(true);
     } else {
-        m_current_keys.merge(check_keys());
+	get_current_keys(false);
         m_counter++;
+    }
+
+    if (GET_MASK(MASK_AUTO_CLEAR)) {
+	m_clear_timer += seconds;
+	if (m_clear_timer >= m_clear_interval) {
+	    m_clear_timer = 0.f;
+	    clear_history();
+	}
     }
 
     if (GET_MASK(MASK_TEXT_MODE)) {
@@ -270,6 +284,25 @@ inline void InputHistorySource::Tick(float seconds)
     }
 }
 
+void InputHistorySource::get_current_keys(bool renderText) {
+    KeyBundle k = check_keys();
+    if (m_keys_released) {
+	if (!m_current_keys.is_only_mouse() || GET_MASK(MASK_INCLUDE_MOUSE)) {
+	    if (m_current_keys.compare(&k) && m_current_keys.compare(&m_prev_keys)) {
+	        m_prev_keys.m_key_pressed_n_times += 1;
+	        update_latest_history(m_prev_keys);
+	        m_clear_timer = 0.f;
+	    }
+	}
+    }
+    if (GET_MASK(MASK_TEXT_MODE) && renderText) {
+	handle_text_history();
+    }
+
+    m_keys_released = k.m_empty;
+    m_current_keys.merge(k);
+}
+
 inline void InputHistorySource::Render(gs_effect_t* effect)
 {
     if (GET_MASK(MASK_TEXT_MODE)) {
@@ -282,11 +315,11 @@ inline void InputHistorySource::Render(gs_effect_t* effect)
 void KeyBundle::merge(KeyBundle other)
 {
     if (!other.m_empty) {
-        m_empty = false;
-
         for (int i = 0; i < MAX_SIMULTANEOUS_KEYS; i++) {
-            if (other.m_keys[i] > 0)
+            if (other.m_keys[i] > 0) {
                 m_keys[i] = other.m_keys[i];
+		m_empty = false;
+	    }
         }
     }
 }
@@ -348,6 +381,12 @@ std::string KeyBundle::to_string(uint8_t masks, KeyNames* names)
             }
 #endif
         }
+    }
+
+    // handle multiple presses of the same keys
+    if (m_key_pressed_n_times > 1) {
+	text.append(" x ");
+	text.append(std::to_string(m_key_pressed_n_times));
     }
 
     if ((masks & MASK_FIX_CUTTING) && !text.empty())

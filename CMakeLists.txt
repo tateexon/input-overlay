@@ -1,3 +1,4 @@
+cmake_minimum_required(VERSION 3.19)
 project(input-overlay)
 
 find_path(UIOHOOK_INCLUDE_DIR uiohook.h)

@@ -13,6 +13,9 @@ void util_clear_pressed(void)
         pressed_keys[i] = 0;
 }
 
+/**
+* Loop through all pressed keys
+*/
 bool util_pressed_empty(void)
 {
     for (int i = 0; i < MAX_SIMULTANEOUS_KEYS; i++) {

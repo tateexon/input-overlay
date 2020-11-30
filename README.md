@@ -37,3 +37,6 @@ Right-click the project "input-overlay" in VS > Properties > Configuration Prope
 Choose /MT for runtime library in the Release Configuration 
 ```
 ### Made a preset? Let me know and I'll add it to the repository!
+
+
+https://web.archive.org/web/20200809061514/https://universallp.wordpress.com/category/allgemein/code/
